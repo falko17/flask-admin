@@ -478,7 +478,20 @@ msgstr "Abbrechen"
 msgid "Save and Add Another"
 msgstr "Speichern und neuer Eintrag"
 
+<<<<<<< HEAD
 #: ../flask_admin/templates/bootstrap4/admin/lib.html:293
+||||||| parent of b7243d48 (Add support for frozen fields)
+#: ../flask_admin/templates/bootstrap2/admin/lib.html:259
+#: ../flask_admin/templates/bootstrap3/admin/lib.html:250
+=======
+#: ../flask_admin/templates/bootstrap2/admin/lib.html:263
+#: ../flask_admin/templates/bootstrap3/admin/lib.html:254
+msgid "Save and Add Another (Freeze Fields)"
+msgstr "Speichern und neuer Eintrag (Felder einfrieren)"
+
+#: ../flask_admin/templates/bootstrap2/admin/lib.html:259
+#: ../flask_admin/templates/bootstrap3/admin/lib.html:250
+>>>>>>> b7243d48 (Add support for frozen fields)
 msgid "Save and Continue Editing"
 msgstr "Speichern und Fortfahren"
 

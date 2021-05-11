@@ -1,4 +1,9 @@
 import csv
+import mimetypes
+import time
+from typing import Optional, cast, Type, List
+
+from math import ceil
 import inspect
 import mimetypes
 import re
@@ -834,6 +839,31 @@ class BaseModelView(BaseView, ActionsMixin):
         Customized rules for the create form. Override `form_rules` if present.
     """
 
+    allow_frozen_fields = False
+    """
+        If true, renders an additional button in the create and edit form which
+        acts like "Save and Add Another", but keeps ("freezes") field contents
+        instead of clearing them.
+
+        Fields in `excluded_frozen_fields` will never be frozen.
+    """
+
+    excluded_frozen_fields: List[str] = []
+    """
+        If `allow_frozen_fields` is set to `True` and the user clicks on
+        the corresponding button, only fields whose name is not included
+        in this list will be frozen.
+
+        In other words, add any fields here which shall be cleared even if the user
+        clicks on "Save And Add Another (Freeze Fields)", such as password fields.
+
+        Example::
+
+            class MyModelView(BaseModelView):
+                excluded_frozen_fields = ('password', 'confirm_password')
+
+    """
+
     # Actions
     action_disallowed_list: t.Sequence[str] = cast(
         t.Sequence[str],
@@ -974,6 +1004,10 @@ class BaseModelView(BaseView, ActionsMixin):
             self._list_form_class = self.get_list_form()
         else:
             self.column_editable_list = {}
+
+        # Initialize frozen fields
+        if not hasattr(self, "_frozen_id"):
+            self._frozen_id = None
 
     def _refresh_filters_cache(self) -> None:
         self._filters = self.get_filters()
@@ -2321,9 +2355,21 @@ class BaseModelView(BaseView, ActionsMixin):
         if not self.can_create:
             return redirect(return_url)
 
-        form = self.create_form()
+        # handle frozen fields, coming from an edit form
+        existing_model = None
+        if self._frozen_id:
+            existing_model = self.get_one(self._frozen_id)
+            self._frozen_id = None
+
+        form = self.create_form(obj=existing_model)
         if not hasattr(form, "_validated_ruleset") or not form._validated_ruleset:
             self._validate_form_instance(ruleset=self._form_create_rules, form=form)
+
+        if existing_model is not None:
+            # we need to reset excluded frozen fields here.
+            for field in self.excluded_frozen_fields:
+                if field in form.data:
+                    getattr(form, field).data = ""
 
         if self.validate_form(form):
             # in versions 1.1.0 and before, this returns a boolean
@@ -2332,6 +2378,14 @@ class BaseModelView(BaseView, ActionsMixin):
             if model:
                 flash(gettext("Record was successfully created."), "success")
                 if "_add_another" in request.form:
+                    return redirect(request.url)
+                elif "_freeze_fields" in request.form and self.allow_frozen_fields:
+                    # we need to do is reset the excluded fields and then persist
+                    # the frozen fields.
+                    for field in self.excluded_frozen_fields:
+                        if field in form.data:
+                            getattr(form, field).data = ""
+                    self._frozen_id = self.get_pk_value(model)
                     return redirect(request.url)
                 elif "_continue_editing" in request.form:
                     # if we have a valid model, try to go to the edit view
@@ -2387,6 +2441,9 @@ class BaseModelView(BaseView, ActionsMixin):
             if self.update_model(form, model):
                 flash(gettext("Record was successfully saved."), "success")
                 if "_add_another" in request.form:
+                    return redirect(self.get_url(".create_view", url=return_url))
+                elif "_freeze_fields" in request.form and self.allow_frozen_fields:
+                    self._frozen_id = self.get_pk_value(model)
                     return redirect(self.get_url(".create_view", url=return_url))
                 elif "_continue_editing" in request.form:
                     return redirect(
